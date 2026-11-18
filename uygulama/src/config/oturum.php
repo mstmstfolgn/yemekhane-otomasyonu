@@ -2,6 +2,10 @@
 declare(strict_types=1);
 
 if (session_status() === PHP_SESSION_NONE) {
+    $redisHost = getenv('REDIS_HOST') ?: 'redis';
+    $redisPort = getenv('REDIS_PORT') ?: '6379';
+    ini_set('session.save_handler', 'redis');
+    ini_set('session.save_path', "tcp://{$redisHost}:{$redisPort}");
     session_start();
 }
 
