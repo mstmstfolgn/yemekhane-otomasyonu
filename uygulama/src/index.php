@@ -13,6 +13,7 @@ require_once __DIR__ . '/kontrol/MenuKontrol.php';
 require_once __DIR__ . '/kontrol/BakiyeKontrol.php';
 require_once __DIR__ . '/kontrol/RezervasyonKontrol.php';
 require_once __DIR__ . '/kontrol/YoneticiKontrol.php';
+require_once __DIR__ . '/kontrol/ProfilKontrol.php';
 
 $yol   = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $yol   = rtrim($yol, '/') ?: '/';
@@ -44,6 +45,10 @@ if ($yol === '/giris') {
     RezervasyonKontrol::degerlendirmeSayfasi();
 } elseif ($yol === '/degerlendirme-kaydet' && $metot === 'POST') {
     RezervasyonKontrol::degerlendirmeKaydet();
+} elseif ($yol === '/profil') {
+    ProfilKontrol::profilSayfasi();
+} elseif ($yol === '/profil/alerjen-kaydet' && $metot === 'POST') {
+    ProfilKontrol::alerjenKaydet();
 } elseif ($yol === '/yonetici') {
     YoneticiKontrol::panel();
 } elseif ($yol === '/yonetici/menu-kaydet' && $metot === 'POST') {

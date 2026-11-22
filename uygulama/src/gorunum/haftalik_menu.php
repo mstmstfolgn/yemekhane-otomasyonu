@@ -1,10 +1,5 @@
 <?php require __DIR__ . '/sablon/ust.php'; ?>
 
-<?php
-$oncekiHafta  = date('Y-m-d', strtotime($baslangic . ' -7 days'));
-$sonrakiHafta = date('Y-m-d', strtotime($baslangic . ' +7 days'));
-?>
-
 <section class="kart">
     <h1>Haftalık Menü ve Rezervasyon</h1>
     <form method="get" action="/haftalik-menu" class="filtre-form">
@@ -18,100 +13,100 @@ $sonrakiHafta = date('Y-m-d', strtotime($baslangic . ' +7 days'));
                 <?php endforeach; ?>
             </select>
         </div>
-
         <div>
             <label for="baslangic">Başlangıç Tarihi (7 Gün)</label>
             <input type="date" id="baslangic" name="baslangic" value="<?= e($baslangic) ?>">
         </div>
-
         <div>
-            <button type="submit" class="dugme" style="width: 100%;">Listele</button>
+            <button type="submit" class="dugme">Listele</button>
         </div>
     </form>
-
-    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; margin-top: 0.9rem;">
-        <a class="dugme dugme-ikincil dugme-kucuk" href="/haftalik-menu?yemekhane_id=<?= (int)$yemekhaneId ?>&baslangic=<?= e($oncekiHafta) ?>">
-            &larr; Önceki 7 Gün
-        </a>
-        <span style="font-size: var(--boyut-kucuk); color: var(--metin-soluk); align-self: center;">
-            Aralık: <strong><?= e($baslangic) ?></strong> – <strong><?= e($bitis) ?></strong>
-        </span>
-        <a class="dugme dugme-ikincil dugme-kucuk" href="/haftalik-menu?yemekhane_id=<?= (int)$yemekhaneId ?>&baslangic=<?= e($sonrakiHafta) ?>">
-            Sonraki 7 Gün &rarr;
-        </a>
-    </div>
 </section>
 
-<section class="kart">
-    <?php if (empty($menuler)): ?>
-        <p style="margin: 0;">Seçilen tarih aralığında menü kaydı bulunamadı.</p>
-    <?php else: ?>
-        <div class="tablo-kaydir">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Tarih / Öğün</th>
-                        <th>Menü İçeriği</th>
-                        <th>Ücret</th>
-                        <th>Boş Yer</th>
-                        <th>Son Saat</th>
-                        <th>İşlem</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($menuler as $m): ?>
-                        <?php
-                            $fiyat = ($kullanici['rol'] === 'ogrenci')
-                                ? (float)$m['ogrenci_fiyati']
-                                : (float)$m['personel_fiyati'];
-                            $durum = $m['rezervasyon_durum'] ?? null;
-                            $suresiGecti = ((int)$m['suresi_gecti'] === 1);
-                            $bosYer = (int)$m['bos_yer'];
-                        ?>
-                        <tr>
-                            <td>
-                                <strong><?= e($m['tarih']) ?></strong><br>
-                                <span class="rozet"><?= e($m['ogun']) ?></span>
-                            </td>
-                            <td>
-                                <?= e($m['yemek_ozeti'] ?: 'Yemek listesi girilmemiş') ?>
-                                <div style="margin-top: 0.25rem;">
-                                    <a href="/gunun-menusu?yemekhane_id=<?= (int)$m['yemekhane_id'] ?>&tarih=<?= e($m['tarih']) ?>&ogun_id=<?= (int)$m['ogun_id'] ?>" style="font-size: var(--boyut-kucuk);">
-                                        Kalori ve alerjen detayı
-                                    </a>
-                                </div>
-                            </td>
-                            <td><strong><?= number_format($fiyat, 2, ',', '.') ?> TL</strong></td>
-                            <td>
-                                <strong><?= $bosYer ?></strong> / <?= (int)$m['kapasite'] ?>
-                            </td>
-                            <td style="font-size: var(--boyut-kucuk);">
-                                <?= e(substr((string)$m['rezervasyon_son'], 0, 16)) ?>
-                            </td>
-                            <td>
-                                <?php if ($durum === 'aktif'): ?>
-                                    <span class="rozet rozet-aktif">Rezerve Edildi</span>
-                                <?php elseif ($durum === 'kullanildi'): ?>
-                                    <span class="rozet rozet-kullanildi">Kullanıldı</span>
-                                <?php elseif ($suresiGecti): ?>
-                                    <button type="button" class="dugme dugme-kucuk" disabled>Süre Doldu</button>
-                                <?php elseif ($bosYer <= 0): ?>
-                                    <button type="button" class="dugme dugme-kucuk" disabled>Kapasite Dolu</button>
-                                <?php else: ?>
-                                    <form method="post" action="/rezervasyon-yap" style="margin: 0;">
-                                        <input type="hidden" name="menu_id" value="<?= (int)$m['menu_id'] ?>">
-                                        <input type="hidden" name="yemekhane_id" value="<?= (int)$yemekhaneId ?>">
-                                        <input type="hidden" name="baslangic" value="<?= e($baslangic) ?>">
-                                        <button type="submit" class="dugme dugme-kucuk">Rezervasyon Yap</button>
-                                    </form>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    <?php endif; ?>
-</section>
+<?php if (empty($menuler)): ?>
+    <section class="kart">
+        <p>Seçilen tarih aralığında menü bulunamadı.</p>
+    </section>
+<?php else: ?>
+    <?php foreach ($menuler as $m): ?>
+        <?php
+            $tamFiyat = $kullanici['rol'] === 'ogrenci'
+                ? (float)$m['ogrenci_fiyati']
+                : (float)$m['personel_fiyati'];
+            $yarimFiyat = round($tamFiyat * 0.60, 2);
+            $kahvaltiMi = (int)$m['ogun_id'] === 1;
+            $suresiGecti = (int)$m['suresi_gecti'] === 1;
+            $bosYer = (int)$m['bos_yer'];
+            $aktifRez = ($m['rezervasyon_durum'] === 'aktif' || $m['rezervasyon_durum'] === 'kullanildi');
+
+            $alerjenUyarilari = [];
+            foreach (($m['yemekler_detay'] ?? []) as $yd) {
+                $idler = !empty($yd['alerjen_idler'])
+                    ? array_map('intval', explode(',', (string)$yd['alerjen_idler']))
+                    : [];
+                $cakisan = array_values(array_intersect($idler, $kullaniciAlerjenIdler));
+                if (!empty($cakisan)) {
+                    $adlar = array_filter(array_map(static fn(int $id): string => $alerjenHarita[$id] ?? '', $cakisan));
+                    $alerjenUyarilari[] = $yd['yemek'] . ' (' . implode(', ', $adlar) . ')';
+                }
+            }
+        ?>
+        <article class="kart <?= !empty($alerjenUyarilari) ? 'satir-uyari' : '' ?>">
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.5rem; align-items:center;">
+                <div>
+                    <h2><?= e($m['tarih']) ?> · <?= e($m['ogun']) ?></h2>
+                    <p style="font-size:0.9rem; color:var(--metin-soluk);">
+                        Son Rezervasyon: <?= e($m['rezervasyon_son']) ?> ·
+                        Boş Yer: <strong><?= $bosYer ?> / <?= (int)$m['kapasite'] ?></strong>
+                    </p>
+                </div>
+                <div>
+                    <span class="rozet">Tam: <?= number_format($tamFiyat, 2, ',', '.') ?> TL</span>
+                    <?php if (!$kahvaltiMi): ?>
+                        <span class="rozet">Yarım (%60): <?= number_format($yarimFiyat, 2, ',', '.') ?> TL</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <p style="margin:0.6rem 0;"><?= e($m['yemek_ozeti'] ?? 'Yemek listesi tanımlanmamış.') ?></p>
+
+            <?php if (!empty($alerjenUyarilari)): ?>
+                <div class="uyari-kutusu" role="alert">
+                    ⚠️ Alerjen Uyarısı: <?= e(implode('; ', $alerjenUyarilari)) ?>
+                </div>
+            <?php endif; ?>
+
+            <div style="margin-top:0.75rem;">
+                <?php if ($aktifRez): ?>
+                    <span class="rozet rozet-aktif">
+                        Rezerve Edildi (<?= ($m['rezervasyon_porsiyon'] ?? 'tam') === 'yarim' ? 'Yarım Porsiyon' : 'Tam Porsiyon' ?>)
+                    </span>
+                <?php elseif ($suresiGecti): ?>
+                    <button type="button" class="dugme dugme-ikincil dugme-kucuk" disabled>Süresi Doldu</button>
+                <?php elseif ($bosYer <= 0): ?>
+                    <button type="button" class="dugme dugme-ikincil dugme-kucuk" disabled>Kapasite Dolu</button>
+                <?php else: ?>
+                    <form method="post" action="/rezervasyon-yap" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                        <input type="hidden" name="menu_id" value="<?= (int)$m['menu_id'] ?>">
+                        <input type="hidden" name="yemekhane_id" value="<?= (int)$yemekhaneId ?>">
+                        <input type="hidden" name="baslangic" value="<?= e($baslangic) ?>">
+
+                        <?php if ($kahvaltiMi): ?>
+                            <input type="hidden" name="porsiyon" value="tam">
+                            <span class="rozet">Tam Porsiyon (<?= number_format($tamFiyat, 2, ',', '.') ?> TL)</span>
+                        <?php else: ?>
+                            <select name="porsiyon" aria-label="Porsiyon seçimi" style="max-width:250px;">
+                                <option value="tam">Tam Porsiyon (<?= number_format($tamFiyat, 2, ',', '.') ?> TL)</option>
+                                <option value="yarim">Yarım Porsiyon · %60 (<?= number_format($yarimFiyat, 2, ',', '.') ?> TL)</option>
+                            </select>
+                        <?php endif; ?>
+
+                        <button type="submit" class="dugme dugme-kucuk">Rezervasyon Yap</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </article>
+    <?php endforeach; ?>
+<?php endif; ?>
 
 <?php require __DIR__ . '/sablon/alt.php'; ?>

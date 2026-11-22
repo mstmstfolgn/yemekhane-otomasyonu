@@ -13,12 +13,10 @@
                 <?php endforeach; ?>
             </select>
         </div>
-
         <div>
             <label for="tarih">Tarih</label>
             <input type="date" id="tarih" name="tarih" value="<?= e($tarih) ?>">
         </div>
-
         <div>
             <label for="ogun_id">Öğün</label>
             <select id="ogun_id" name="ogun_id">
@@ -29,88 +27,111 @@
                 <?php endforeach; ?>
             </select>
         </div>
-
         <div>
-            <button type="submit" class="dugme" style="width: 100%;">Menüyü Göster</button>
+            <button type="submit" class="dugme">Menüyü Göster</button>
         </div>
     </form>
 </section>
 
-<?php if (!$menuBilgi): ?>
+<?php if (empty($yemekler)): ?>
     <section class="kart">
-        <p style="margin: 0;">Seçilen yemekhane, tarih ve öğün için yayınlanmış menü bulunamadı.</p>
+        <p>Seçilen tarih ve öğün için tanımlı menü bulunamadı.</p>
     </section>
 <?php else: ?>
     <?php
-        $kullaniciFiyati = ($kullanici['rol'] === 'ogrenci')
+        $tamFiyat = $kullanici['rol'] === 'ogrenci'
             ? (float)$menuBilgi['ogrenci_fiyati']
             : (float)$menuBilgi['personel_fiyati'];
+        $yarimFiyat = round($tamFiyat * 0.60, 2);
+        $kahvaltiMi = (int)$menuBilgi['ogun_id'] === 1;
+
+        $eslesenYemekUyari = [];
+        foreach ($yemekler as &$yemekSatir) {
+            $idler = $yemekSatir['alerjen_idler']
+                ? array_map('intval', explode(',', (string)$yemekSatir['alerjen_idler']))
+                : [];
+            $cakisanIdler = array_values(array_intersect($idler, $kullaniciAlerjenIdler));
+            $cakisanAdlar = array_map(static fn(int $id): string => $alerjenHarita[$id] ?? '', $cakisanIdler);
+            $cakisanAdlar = array_filter($cakisanAdlar);
+            $yemekSatir['cakisan_alerjenler'] = $cakisanAdlar;
+            if (!empty($cakisanAdlar)) {
+                $eslesenYemekUyari[] = $yemekSatir['yemek'] . ' (' . implode(', ', $cakisanAdlar) . ')';
+            }
+        }
+        unset($yemekSatir);
     ?>
+
     <section class="kart">
-        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.75rem; align-items:center;">
             <div>
-                <h2 style="margin-bottom: 0.2rem;"><?= e($menuBilgi['yemekhane']) ?> · <?= e($menuBilgi['ogun']) ?></h2>
-                <span style="color: var(--metin-soluk); font-size: var(--boyut-kucuk);">
-                    Tarih: <strong><?= e($menuBilgi['tarih']) ?></strong> |
-                    Son Rezervasyon: <strong><?= e(substr((string)$menuBilgi['rezervasyon_son'], 0, 16)) ?></strong>
-                </span>
+                <h2><?= e($menuBilgi['yemekhane']) ?> · <?= e($menuBilgi['ogun']) ?> (<?= e($menuBilgi['tarih']) ?>)</h2>
+                <p>
+                    <strong>Tam Porsiyon:</strong> <?= number_format($tamFiyat, 2, ',', '.') ?> TL
+                    <?php if (!$kahvaltiMi): ?>
+                        · <strong>Yarım Porsiyon (%60):</strong> <?= number_format($yarimFiyat, 2, ',', '.') ?> TL
+                    <?php else: ?>
+                        · <em>(Kahvaltıda yarım porsiyon yoktur)</em>
+                    <?php endif; ?>
+                </p>
             </div>
-            <a class="dugme" href="/haftalik-menu?yemekhane_id=<?= (int)$yemekhaneId ?>&baslangic=<?= e($tarih) ?>">
-                Rezervasyon Ekranına Git
-            </a>
-        </div>
-
-        <div class="izgara-2" style="margin-bottom: 1rem;">
-            <div class="kart" style="margin-bottom: 0; background: var(--zemin);">
-                <strong>Ücretiniz:</strong> <?= number_format($kullaniciFiyati, 2, ',', '.') ?> TL
-                <div style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
-                    Öğrenci: <?= number_format((float)$menuBilgi['ogrenci_fiyati'], 2, ',', '.') ?> TL ·
-                    Personel: <?= number_format((float)$menuBilgi['personel_fiyati'], 2, ',', '.') ?> TL
-                </div>
-            </div>
-
-            <div class="kart" style="margin-bottom: 0; background: var(--zemin);">
-                <strong>Toplam Enerji:</strong> <?= (int)$toplamKalori ?> kcal
+            <div>
+                <span class="rozet">Toplam: <?= (int)$toplamKalori ?> kcal</span>
                 <?php if ($doluluk): ?>
-                    <div style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
-                        Doluluk: <?= (int)$doluluk['rezerve'] ?> / <?= (int)$doluluk['kapasite'] ?>
-                        (Boş yer: <strong><?= (int)$doluluk['bos_yer'] ?></strong> · %<?= e($doluluk['doluluk_yuzde']) ?>)
-                    </div>
+                    <span class="rozet">Boş Yer: <?= (int)$doluluk['bos_yer'] ?> / <?= (int)$doluluk['kapasite'] ?></span>
                 <?php endif; ?>
             </div>
         </div>
 
-        <div class="tablo-kaydir">
+        <?php if (!empty($eslesenYemekUyari)): ?>
+            <div class="uyari-kutusu" role="alert">
+                ⚠️ Alerjen Uyarısı: Profilinizde işaretlediğiniz alerjenleri içeren yemekler var — <?= e(implode('; ', $eslesenYemekUyari)) ?>
+            </div>
+        <?php endif; ?>
+
+        <div style="overflow-x:auto; margin-top:0.75rem;">
             <table>
                 <thead>
                     <tr>
                         <th>Kategori</th>
                         <th>Yemek</th>
                         <th>Kalori</th>
-                        <th>Beslenme ve Alerjen Bilgisi</th>
+                        <th>Özellik &amp; Alerjenler</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($yemekler as $yemek): ?>
-                        <tr>
-                            <td><?= e($yemek['kategori']) ?></td>
-                            <td><strong><?= e($yemek['yemek']) ?></strong></td>
-                            <td><?= (int)$yemek['kalori'] ?> kcal</td>
+                    <?php foreach ($yemekler as $y): ?>
+                        <?php $uyariVar = !empty($y['cakisan_alerjenler']); ?>
+                        <tr class="<?= $uyariVar ? 'satir-uyari' : '' ?>">
+                            <td><?= e($y['kategori']) ?></td>
                             <td>
-                                <?php if ((int)$yemek['vejetaryen'] === 1): ?>
+                                <strong><?= e($y['yemek']) ?></strong>
+                                <?php if ($uyariVar): ?>
+                                    <div style="margin-top:0.25rem;">
+                                        <span class="rozet rozet-uyari">⚠️ Alerjen Uyarısı: <?= e(implode(', ', $y['cakisan_alerjenler'])) ?></span>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= (int)$y['kalori'] ?> kcal</td>
+                            <td>
+                                <?php if ((int)$y['vejetaryen'] === 1): ?>
                                     <span class="rozet rozet-vejetaryen">Vejetaryen</span>
                                 <?php endif; ?>
-                                <?php if (!empty($yemek['alerjenler'])): ?>
-                                    <span class="rozet rozet-alerjen">Alerjen: <?= e($yemek['alerjenler']) ?></span>
-                                <?php endif; ?>
-                                <?php if ((int)$yemek['vejetaryen'] !== 1 && empty($yemek['alerjenler'])): ?>
-                                    <span style="color: var(--metin-soluk); font-size: var(--boyut-kucuk);">—</span>
+                                <?php if (!empty($y['alerjenler'])): ?>
+                                    <span class="rozet rozet-alerjen"><?= e($y['alerjenler']) ?></span>
+                                <?php else: ?>
+                                    <span>—</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+
+        <div style="margin-top:1rem;">
+            <a class="dugme" href="/haftalik-menu?yemekhane_id=<?= (int)$yemekhaneId ?>&baslangic=<?= e($tarih) ?>">
+                Rezervasyon İçin Haftalık Menüye Geç
+            </a>
         </div>
     </section>
 <?php endif; ?>

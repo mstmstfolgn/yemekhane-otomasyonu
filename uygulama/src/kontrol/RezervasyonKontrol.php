@@ -7,21 +7,22 @@ class RezervasyonKontrol
     {
         $kullanici   = girisGerekli();
         $menuId      = (int)($_POST['menu_id'] ?? 0);
+        $porsiyon    = (string)($_POST['porsiyon'] ?? 'tam');
         $yemekhaneId = (int)($_POST['yemekhane_id'] ?? 1);
         $baslangic   = (string)($_POST['baslangic'] ?? date('Y-m-d'));
 
         try {
-            $sonuc = RezervasyonVeri::rezervasyonYap((int)$kullanici['id'], $menuId);
+            $sonuc = RezervasyonVeri::rezervasyonYap((int)$kullanici['id'], $menuId, $porsiyon);
             if (isset($sonuc['bakiye'])) {
                 oturumBakiyeGuncelle((float)$sonuc['bakiye']);
             }
             $ucret = number_format((float)($sonuc['ucret'] ?? 0), 2, ',', '.');
-            bildirimEkle('basari', "Rezervasyonunuz oluşturuldu ({$ucret} TL).");
+            $porsiyonEtiket = ($sonuc['porsiyon'] ?? $porsiyon) === 'yarim' ? 'Yarım porsiyon' : 'Tam porsiyon';
+            bildirimEkle('basari', "Rezervasyonunuz oluşturuldu ({$porsiyonEtiket} · {$ucret} TL).");
         } catch (PDOException $e) {
             bildirimEkle('hata', procedureHataMesaji($e));
         }
 
-        // Rezervasyon hemen sonrasında güncel bakiye kaynaktan (mysql-primary) okunur
         $sorgu = http_build_query([
             'yemekhane_id' => $yemekhaneId,
             'baslangic'    => $baslangic,

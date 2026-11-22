@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 class MenuVeri
 {
-    private const MENU_TTL = 600;   // 10 dakika
-    private const SABIT_TTL = 3600; // 1 saat
+    private const MENU_TTL = 600;
+    private const SABIT_TTL = 3600;
 
     private static function onbellekOku(string $anahtar): mixed
     {
@@ -14,7 +14,6 @@ class MenuVeri
                 return json_decode((string)$veri, true);
             }
         } catch (Throwable $e) {
-            // Redis erişilemezse veritabanından devam et
         }
         return null;
     }
@@ -27,7 +26,6 @@ class MenuVeri
                 redisBaglan()->setex($anahtar, $ttl, $json);
             }
         } catch (Throwable $e) {
-            // Redis yazma hatası uygulamayı durdurmasın
         }
     }
 
@@ -40,7 +38,6 @@ class MenuVeri
                 $redis->del($anahtarlar);
             }
         } catch (Throwable $e) {
-            // Redis temizleme hatası yazma işlemini bozmasın
         }
     }
 
@@ -82,9 +79,6 @@ class MenuVeri
         return $stmt->fetchAll();
     }
 
-    /**
-     * Günün menüsü ekranı için v_menu_detay görünümünden yemek listesini çeker (Redis Cache-Aside).
-     */
     public static function gununMenusuDetay(int $yemekhaneId, string $tarih, int $ogunId): array
     {
         $anahtar = "yemekhane:menu:gunluk:{$yemekhaneId}:{$tarih}:{$ogunId}";
@@ -114,9 +108,6 @@ class MenuVeri
         return $sonuc;
     }
 
-    /**
-     * Menü doluluk ve boş yer bilgisini canlı olarak v_menu_doluluk görünümünden getirir.
-     */
     public static function menuDoluluk(int $menuId): ?array
     {
         $sql = 'SELECT menu_id, tarih, yemekhane_id, yemekhane, ogun_id, ogun,
@@ -130,9 +121,6 @@ class MenuVeri
         return $satir ?: null;
     }
 
-    /**
-     * Haftalık menü verisini Redis'ten okur, canlı doluluk ve kullanıcı rezervasyon durumunu birleştirir.
-     */
     public static function haftalikMenuler(int $yemekhaneId, string $baslangic, string $bitis, int $kullaniciId): array
     {
         $anahtar = "yemekhane:menu:haftalik:{$yemekhaneId}:{$baslangic}:{$bitis}";
@@ -146,12 +134,7 @@ class MenuVeri
             $sql = 'SELECT m.id AS menu_id, m.tarih, m.yemekhane_id, yh.ad AS yemekhane,
                            m.ogun_id, o.ad AS ogun, o.sira AS ogun_sira,
                            TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
-                           m.ogrenci_fiyati, m.personel_fiyati,
-                           (SELECT GROUP_CONCAT(y.ad ORDER BY k.sira, y.ad SEPARATOR ", ")
-                              FROM menu_yemekleri my
-                              JOIN yemekler y ON y.id = my.yemek_id
-                              JOIN yemek_kategorileri k ON k.id = y.kategori_id
-                             WHERE my.menu_id = m.id) AS yemek_ozeti
+                           m.ogrenci_fiyati, m.personel_fiyati
                       FROM menuler m
                       JOIN yemekhaneler yh ON yh.id = m.yemekhane_id
                       JOIN ogunler o ON o.id = m.ogun_id
@@ -161,6 +144,34 @@ class MenuVeri
             $stmt = okumaDb()->prepare($sql);
             $stmt->execute([$yemekhaneId, $baslangic, $bitis]);
             $temelMenuler = $stmt->fetchAll();
+
+            if (!empty($temelMenuler)) {
+                $mIdler = array_map(static fn(array $m): int => (int)$m['menu_id'], $temelMenuler);
+                $ph = implode(',', array_fill(0, count($mIdler), '?'));
+                $ySql = "SELECT menu_id, yemek_id, yemek, kategori_sira, alerjenler, alerjen_idler
+                           FROM v_menu_detay
+                          WHERE menu_id IN ({$ph})
+                          ORDER BY kategori_sira, yemek";
+                $yStmt = okumaDb()->prepare($ySql);
+                $yStmt->execute($mIdler);
+
+                $yemekHarita = [];
+                foreach ($yStmt->fetchAll() as $ys) {
+                    $yemekHarita[(int)$ys['menu_id']][] = [
+                        'yemek_id'      => (int)$ys['yemek_id'],
+                        'yemek'         => $ys['yemek'],
+                        'alerjenler'    => $ys['alerjenler'],
+                        'alerjen_idler' => $ys['alerjen_idler'],
+                    ];
+                }
+
+                foreach ($temelMenuler as &$tm) {
+                    $liste = $yemekHarita[(int)$tm['menu_id']] ?? [];
+                    $tm['yemekler_detay'] = $liste;
+                    $tm['yemek_ozeti'] = implode(', ', array_column($liste, 'yemek'));
+                }
+                unset($tm);
+            }
 
             self::onbellekYaz($anahtar, $temelMenuler, self::MENU_TTL);
             if (!headers_sent()) {
@@ -172,13 +183,12 @@ class MenuVeri
             return [];
         }
 
-        // Canlı doluluk ve kullanıcının rezervasyon durumunu replikadan birleştir
         $menuIdler = array_map(static fn(array $m): int => (int)$m['menu_id'], $temelMenuler);
         $yerTutucu = implode(',', array_fill(0, count($menuIdler), '?'));
 
         $canliSql = "SELECT d.menu_id, d.kapasite, d.rezerve, d.bos_yer, d.doluluk_yuzde,
                             (NOW() >= d.rezervasyon_son) AS suresi_gecti,
-                            r.id AS rezervasyon_id, r.durum AS rezervasyon_durum
+                            r.id AS rezervasyon_id, r.durum AS rezervasyon_durum, r.porsiyon AS rezervasyon_porsiyon
                        FROM v_menu_doluluk d
                        LEFT JOIN rezervasyonlar r
                               ON r.menu_id = d.menu_id AND r.kullanici_id = ?
@@ -194,22 +204,20 @@ class MenuVeri
         foreach ($temelMenuler as &$menu) {
             $mid = (int)$menu['menu_id'];
             $canli = $canliHarita[$mid] ?? [];
-            $menu['kapasite']          = $canli['kapasite'] ?? 0;
-            $menu['rezerve']           = $canli['rezerve'] ?? 0;
-            $menu['bos_yer']           = $canli['bos_yer'] ?? 0;
-            $menu['doluluk_yuzde']     = $canli['doluluk_yuzde'] ?? 0;
-            $menu['suresi_gecti']      = $canli['suresi_gecti'] ?? 0;
-            $menu['rezervasyon_id']    = $canli['rezervasyon_id'] ?? null;
-            $menu['rezervasyon_durum'] = $canli['rezervasyon_durum'] ?? null;
+            $menu['kapasite']             = $canli['kapasite'] ?? 0;
+            $menu['rezerve']              = $canli['rezerve'] ?? 0;
+            $menu['bos_yer']              = $canli['bos_yer'] ?? 0;
+            $menu['doluluk_yuzde']        = $canli['doluluk_yuzde'] ?? 0;
+            $menu['suresi_gecti']         = $canli['suresi_gecti'] ?? 0;
+            $menu['rezervasyon_id']       = $canli['rezervasyon_id'] ?? null;
+            $menu['rezervasyon_durum']    = $canli['rezervasyon_durum'] ?? null;
+            $menu['rezervasyon_porsiyon'] = $canli['rezervasyon_porsiyon'] ?? null;
         }
         unset($menu);
 
         return $temelMenuler;
     }
 
-    /**
-     * Yönetici paneli için menü bazında doluluk ve ortalama puan raporu.
-     */
     public static function yoneticiMenuRaporu(?string $tarih = null): array
     {
         $kosul = '';
@@ -236,9 +244,6 @@ class MenuVeri
         return $stmt->fetchAll();
     }
 
-    /**
-     * Düzenleme formu için tek bir menüyü ve seçili yemek ID'lerini getirir.
-     */
     public static function menuGetirById(int $menuId): ?array
     {
         $sql = 'SELECT m.id, m.yemekhane_id, m.tarih, m.ogun_id, m.ogrenci_fiyati, m.personel_fiyati,
@@ -262,9 +267,6 @@ class MenuVeri
         return $menu;
     }
 
-    /**
-     * Yönetici panelinden yeni menü ekler veya günceller, ardından menü önbelleğini temizler.
-     */
     public static function menuKaydet(
         int $yemekhaneId,
         string $tarih,
@@ -308,8 +310,6 @@ class MenuVeri
             }
 
             $db->commit();
-
-            // Önbellek geçersiz kılma (Cache Invalidation)
             self::menuOnbellekTemizle();
 
             return $menuId;

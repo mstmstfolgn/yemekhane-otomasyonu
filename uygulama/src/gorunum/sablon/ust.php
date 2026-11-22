@@ -100,9 +100,24 @@ $mevcutYol = rtrim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/
         }
         .rozet-vejetaryen { background: #E6F2E6; color: #2E6B30; border-color: #B7D9B8; }
         .rozet-alerjen    { background: #FCE8E6; color: #B3261E; border-color: #F2B8B5; }
+        .rozet-uyari      { background: #B3261E; color: #FFFFFF; border-color: #8C1D18; }
         .rozet-aktif      { background: #E6F2E6; color: #2E6B30; border-color: #B7D9B8; }
         .rozet-kullanildi { background: #E8F0FE; color: #1967D2; border-color: #AECBFA; }
         .rozet-iptal      { background: #F1F3F4; color: #5F6368; border-color: #DADCE0; }
+        .uyari-kutusu {
+            background: #FCE8E6;
+            border: 1px solid #F2B8B5;
+            border-left: 4px solid #B3261E;
+            color: #7A1C16;
+            padding: 0.65rem 0.85rem;
+            border-radius: var(--kose);
+            margin: 0.65rem 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .satir-uyari {
+            background: #FFF5F4;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -118,12 +133,8 @@ $mevcutYol = rtrim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/
             background: var(--zemin);
             font-weight: 700;
         }
-        .dugme-ikincil {
-            background: var(--metin-soluk);
-        }
-        .dugme-tehlike {
-            background: var(--hata);
-        }
+        .dugme-ikincil { background: var(--metin-soluk); }
+        .dugme-tehlike { background: var(--hata); }
         .dugme-kucuk {
             min-height: 36px;
             padding: 0.4rem 0.75rem;
@@ -165,6 +176,7 @@ $mevcutYol = rtrim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/
                 <a href="/rezervasyonlarim" class="<?= $mevcutYol === '/rezervasyonlarim' ? 'aktif' : '' ?>">Rezervasyonlarım</a>
                 <a href="/bakiye" class="<?= $mevcutYol === '/bakiye' ? 'aktif' : '' ?>">Bakiye</a>
                 <a href="/degerlendirme" class="<?= $mevcutYol === '/degerlendirme' ? 'aktif' : '' ?>">Değerlendirme</a>
+                <a href="/profil" class="<?= $mevcutYol === '/profil' ? 'aktif' : '' ?>">Profil &amp; Alerjenler</a>
                 <?php if ($aktifKul['rol'] === 'yonetici'): ?>
                     <a href="/yonetici" class="<?= $mevcutYol === '/yonetici' ? 'aktif' : '' ?>">Yönetici Paneli</a>
                 <?php endif; ?>

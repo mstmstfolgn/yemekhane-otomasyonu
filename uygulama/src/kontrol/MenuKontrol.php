@@ -14,9 +14,11 @@ class MenuKontrol
         $tarih       = isset($_GET['tarih']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['tarih'])
             ? $_GET['tarih']
             : date('Y-m-d');
-        $ogunId      = isset($_GET['ogun_id']) ? (int)$_GET['ogun_id'] : 2; // Varsayılan: Öğle
+        $ogunId      = isset($_GET['ogun_id']) ? (int)$_GET['ogun_id'] : 2;
 
         $yemekler = MenuVeri::gununMenusuDetay($yemekhaneId, $tarih, $ogunId);
+        $kullaniciAlerjenIdler = KullaniciVeri::kullaniciAlerjenIdleri((int)$kullanici['id']);
+        $alerjenHarita = array_column(KullaniciVeri::tumAlerjenler(), 'ad', 'id');
 
         $toplamKalori = 0;
         $menuBilgi = null;
@@ -46,8 +48,9 @@ class MenuKontrol
         $bitis        = date('Y-m-d', strtotime($baslangic . ' +6 days'));
 
         $menuler = MenuVeri::haftalikMenuler($yemekhaneId, $baslangic, $bitis, (int)$kullanici['id']);
+        $kullaniciAlerjenIdler = KullaniciVeri::kullaniciAlerjenIdleri((int)$kullanici['id']);
+        $alerjenHarita = array_column(KullaniciVeri::tumAlerjenler(), 'ad', 'id');
 
-        // Rezervasyon hemen sonrasında bakiye kaynaktan (mysql-primary) okunur
         $kaynakOku = isset($_GET['kaynak']) && $_GET['kaynak'] === '1';
         $tazeKullanici = KullaniciVeri::idIleBul((int)$kullanici['id'], $kaynakOku);
         if ($tazeKullanici) {
